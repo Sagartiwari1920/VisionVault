@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "amqplib": "^2.0.1",
+    "multer": "^2.3.0"
+  }
+}

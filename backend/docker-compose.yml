@@ -1,0 +1,60 @@
+
+services:
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: minio_storage
+    ports:
+      - "9000:9000" # API Port
+      - "9001:9001" # Web UI Console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_queue
+    ports:
+      - "5672:5672"   # Message Broker Port
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-visionVault
+    ports:
+      - "11434:11434"
+    volumes:
+      - models:/root/.ollama/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_vector_db
+    ports:
+      - "6333:6333" # REST API
+      - "6334:6334" # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  models:
+  minio_data:
+  rabbitmq_data:
+  qdrant_data:
