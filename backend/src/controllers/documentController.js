@@ -24,7 +24,7 @@ const uploadDocument = async (req, res) => {
             }
         );
        //put the message into rabbitmq (just after uploading the file )
-       //if the bigger file comes our backend will imediatly respond to the frontend nut our (rabbitmq+worker) will keep uploading the file in background
+       //if the bigger file comes our backend will immediatly respond to the frontend nut our (rabbitmq+worker) will keep uploading the file in background
        //that is what we call as asynchronous process
         const taskPayload = {
             documentId: objectName,
