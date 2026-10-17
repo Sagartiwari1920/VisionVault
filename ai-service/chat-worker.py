@@ -14,7 +14,7 @@ from qdrant_client import QdrantClient
 ensemble_retriever = None
 qdrant_client = QdrantClient(url="http://localhost:6333",api_key=os.getenv("QDRANT_API_KEY"))
 embedder = OllamaEmbeddings(model="nomic-embed-text", base_url="http://localhost:11434")
-COLLECTION_NAME = "ollama_learning_3_genai_optimized"
+COLLECTION_NAME = "visionvault_parent_child_v1"
 
 def build_ensemble_retriever():
     global ensemble_retriever
@@ -32,7 +32,7 @@ def build_ensemble_retriever():
     offset = None
     while True:
         records, offset = qdrant_client.scroll(
-            collection_name=COLLECTION_NAME,
+            collection_name=COLLECTION_NAME, 
             offset=offset,
             limit=100, 
             with_payload=True,
@@ -40,11 +40,17 @@ def build_ensemble_retriever():
         )
         
         for record in records:
-            if record.payload and "text" in record.payload:
+            payload = record.payload or {}
+            metadata = dict(payload.get("metadata") or {})
+
+            # Support LangChain's usual payload key and existing "text" payloads.
+            child_text = payload.get("page_content") or payload.get("text")
+
+            if child_text:
                 documents.append(
                     Document(
-                        page_content=record.payload["text"],
-                        metadata={"document_id": record.payload.get("document_id")}
+                        page_content=child_text,
+                        metadata=metadata
                     )
                 )
                 
@@ -85,14 +91,30 @@ async def chat_endpoint(req: QueryRequest):
         return {"error": "Retriever not initialized"}
         
     docs = ensemble_retriever.invoke(req.query)
-    context_text = "\n".join([doc.page_content for doc in docs])
-    
-    system_prompt = f"Answer the user's query using ONLY the information provided below.\nContext: {context_text}"
-    
+        # Use each matching child's parent text once as the model context.
+    parent_contexts = {}
+
+    for doc in docs:
+        metadata = doc.metadata or {}
+        parent_text = metadata.get("parent_text") or doc.page_content
+        parent_id = metadata.get("parent_id") or parent_text
+        parent_contexts.setdefault(parent_id, parent_text)
+
+    context_text = "\n\n".join(parent_contexts.values())
+    system_prompt = f"""
+    You are a helpful AI assistant. Answer the user's query using ONLY the information provided in the context below. 
+
+    first analyse that the user is asking a ques or he just want a normal communication, then give answers accordingly 
+
+    If the answer is not contained in the context, simply say "I cannot find the answer in the provided document." Do not copy and paste the context directly; instead, summarize the relevant points to answer the question.
+
+    Context: 
+    {context_text}
+    """    
     response = ollama.chat(
         model="llama3.2:3b",
         keep_alive=-1,
-        stream=True,
+        stream=False,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": req.query}
@@ -102,7 +124,7 @@ async def chat_endpoint(req: QueryRequest):
     return {"response": response['message']['content'], "context": context_text}
 
 # 6. Webhook to refresh the index manually
-@app.post("/api/refresh-index")
+@app.post("/api/refresh-index") 
 async def refresh_index():
     build_ensemble_retriever()
     return {"message": "BM25 Index rebuilt successfully"}

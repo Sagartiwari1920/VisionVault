@@ -7,9 +7,9 @@ const {documentRouter}=require("./src/routes/documentRoutes");
 const {chatRouter}=require("./src/routes/chatRoutes");
 
 app.use(express.json());
-
+ 
 app.use("/input",documentRouter);
-app.use("/input/chat",chatRouter);
+app.use("/input/chat",chatRouter); 
 
 app.use('/',(req,res)=>{
     res.send("Hey sagar");
@@ -18,10 +18,10 @@ app.use('/',(req,res)=>{
 const PORT=process.env.PORT || 8888;
 async function connections(){ 
    try {
-    //connect to min io 
+   //connect to minio
     initializeMinio();
     //connect to rabbitmq
-    connectRabbitMQ();
+    connectRabbitMQ(); 
      app.listen(PORT,()=>{
         console.log(`Server is running at port ${PORT}`);
     })

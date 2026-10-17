@@ -3,6 +3,7 @@ import json
 import pika
 from minio import Minio
 from qdrant_client import QdrantClient
+import uuid
 
 # LangChain Imports
 from langchain_community.document_loaders import PyMuPDFLoader
@@ -21,12 +22,12 @@ minio_client = Minio(
 qdrant_url = "http://localhost:6333"
 qdrant_client = QdrantClient(url=qdrant_url,api_key=os.getenv("QDRANT_API_KEY"))
 
-# 2. Setup LangChain Embedder (using local Ollama)
+# 2. Setup LangChain Embedder (using local Ollama)                                      
 embedder = OllamaEmbeddings(
     model="nomic-embed-text",
     base_url="http://localhost:11434"
 )
-COLLECTION_NAME = "ollama_learning_3_genai_optimized"
+COLLECTION_NAME = "visionvault_parent_child_v1"
 
 def process_document(ch, method, properties, body):
     message = json.loads(body)
@@ -43,16 +44,32 @@ def process_document(ch, method, properties, body):
         loader = PyMuPDFLoader(file_path=local_path)
         docs = loader.load()
 
-        # 4. LangChain Text Splitting
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=200
+                # 4. Create larger parent chunks, then smaller searchable child chunks
+        parent_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1500,
+            chunk_overlap=150
         )
-        split_docs = text_splitter.split_documents(documents=docs)
+        child_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=400,
+            chunk_overlap=80
+        )
 
-        # Inject the document_id into metadata so you can trace chunks back to the source file
-        for doc in split_docs:
-            doc.metadata["document_id"] = document_id
+        parent_docs = parent_splitter.split_documents(docs)
+        child_docs = []
+
+        for parent in parent_docs:
+            parent_id = uuid.uuid4().hex
+            children = child_splitter.split_documents([parent])
+
+            for child in children:
+                child.metadata.update({
+                    "document_id": document_id,
+                    "parent_id": parent_id,
+                    "parent_text": parent.page_content,
+                })
+                child_docs.append(child)
+
+        split_docs = child_docs
 
         if split_docs:
             print(f"[*] Storing {len(split_docs)} chunks in Qdrant via LangChain...")

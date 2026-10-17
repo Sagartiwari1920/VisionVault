@@ -6,11 +6,11 @@ const handleChat = async (req, res) => {
     }
  
     try {
-        // 1. Forward the query to the Python FastAPI microservice
+                // 1. Forward the query to the Python FastAPI microservice
         const pythonResponse = await fetch('http://localhost:8000/api/chat', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json'      
             },
             body: JSON.stringify({ query })
         });
